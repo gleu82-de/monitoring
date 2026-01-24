@@ -14,11 +14,14 @@ jobs:
       
       - name: Setup SSH
         run: |
+          set -x
           mkdir -p ~/.ssh
           echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 192.168.2.1 >> ~/.ssh/known_hosts
-          sudo bash -c 'echo "192.168.2.1 PROD" >> /etc/hosts'
+          ssh-keyscan -H 192.168.2.1 >> ~/.ssh/known_hosts 2>/dev/null
+          sudo sh -c 'echo "192.168.2.1 PROD" >> /etc/hosts'
+          ls -la ~/.ssh/
+          cat ~/.ssh/id_ed25519 | head -1
       
       - name: Deploy to PROD
         run: |
