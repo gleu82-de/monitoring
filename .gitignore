@@ -1,0 +1,11 @@
+# Editor
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Test files
+test/

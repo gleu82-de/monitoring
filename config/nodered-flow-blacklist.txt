@@ -1,0 +1,8 @@
+# Node-Red Flow Error Blacklist
+# Flows in dieser Liste werden beim Error-Monitoring ignoriert
+# Ein Flow-Name pro Zeile
+# Kommentare mit # am Zeilenanfang
+
+# Beispiel:
+# TestFlow
+# DebugFlow
