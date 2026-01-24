@@ -12,48 +12,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       
-      - name: Setup SSH
+      - name: Deploy to local filesystem
         run: |
-          set -x
-          mkdir -p ~/.ssh
-          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 192.168.2.1 >> ~/.ssh/known_hosts 2>/dev/null
-          sudo sh -c 'echo "192.168.2.1 PROD" >> /etc/hosts'
-          ls -la ~/.ssh/
-          cat ~/.ssh/id_ed25519 | head -1
-      
-      - name: Deploy to PROD
-        run: |
-          PROD_HOST="dgl@PROD"
-          PROD_DEPLOY_DIR="/home/dgl/monitoring"
-          PROD_SYMLINK="/root/monitoring"
+          DEPLOY_DIR="/home/dgl/monitoring"
+          SYMLINK="/root/monitoring"
           
-          echo "=== Deploying to PROD ==="
+          echo "=== Deploying to $DEPLOY_DIR ==="
           
           # Create directory structure
-          ssh $PROD_HOST "mkdir -p $PROD_DEPLOY_DIR/{scripts,config,bin,docs}"
+          mkdir -p $DEPLOY_DIR/{scripts,config,bin,docs}
           
           # Deploy files
-          scp -r scripts/*.sh $PROD_HOST:$PROD_DEPLOY_DIR/scripts/
-          ssh $PROD_HOST "chmod +x $PROD_DEPLOY_DIR/scripts/*.sh"
+          cp -r scripts/*.sh $DEPLOY_DIR/scripts/
+          chmod +x $DEPLOY_DIR/scripts/*.sh
           
-          scp -r config/* $PROD_HOST:$PROD_DEPLOY_DIR/config/
-          scp -r bin/* $PROD_HOST:$PROD_DEPLOY_DIR/bin/
-          ssh $PROD_HOST "chmod +x $PROD_DEPLOY_DIR/bin/*.sh"
+          cp -r config/* $DEPLOY_DIR/config/
+          cp -r bin/* $DEPLOY_DIR/bin/
+          chmod +x $DEPLOY_DIR/bin/*.sh
           
-          scp -r docs/* $PROD_HOST:$PROD_DEPLOY_DIR/docs/ 2>/dev/null || true
-          scp VERSION $PROD_HOST:$PROD_DEPLOY_DIR/
-          scp README.md $PROD_HOST:$PROD_DEPLOY_DIR/
+          cp -r docs/* $DEPLOY_DIR/docs/ 2>/dev/null || true
+          cp VERSION $DEPLOY_DIR/
+          cp README.md $DEPLOY_DIR/
           
           # Create root symlink
-          ssh $PROD_HOST "sudo ln -sfn $PROD_DEPLOY_DIR $PROD_SYMLINK"
+          sudo ln -sfn $DEPLOY_DIR $SYMLINK
           
           echo "✅ Deployment complete"
           
       - name: Verify Deployment
         run: |
-          DEPLOYED_VERSION=$(ssh dgl@PROD "cat ~/monitoring/VERSION")
+          DEPLOYED_VERSION=$(cat /home/dgl/monitoring/VERSION)
           EXPECTED_VERSION=$(cat VERSION)
           
           if [ "$DEPLOYED_VERSION" = "$EXPECTED_VERSION" ]; then
