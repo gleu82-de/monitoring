@@ -14,7 +14,7 @@ else
     exit 1
 fi
 
-TIMEFRAME="5min"
+TIMEFRAME="5 minutes ago"
 ERROR_THRESHOLD=5
 
 # Alle Debmatic Services prüfen

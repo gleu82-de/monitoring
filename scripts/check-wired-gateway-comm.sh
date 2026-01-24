@@ -15,7 +15,7 @@ else
 fi
 
 GATEWAY_IP="192.168.2.3"
-TIMEFRAME="10min"
+TIMEFRAME="10 minutes ago"
 
 # Prüfe ob HS485 Daemon läuft
 if ! systemctl is-active --quiet debmatic-hs485d; then

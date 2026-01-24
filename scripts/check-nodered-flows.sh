@@ -14,7 +14,7 @@ else
     exit 1
 fi
 
-TIMEFRAME="5min"
+TIMEFRAME="5 minutes ago"
 BLACKLIST="${SCRIPT_DIR}/../config/nodered-flow-blacklist.txt"
 
 # Lade Blacklist (wenn vorhanden)

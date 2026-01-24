@@ -15,7 +15,7 @@ else
 fi
 
 ANTENNA_IP="192.168.2.2"
-TIMEFRAME="10min"
+TIMEFRAME="10 minutes ago"
 
 # Prüfe ob debmatic-monitor-hb-rf-eth Service läuft
 if ! systemctl is-active --quiet debmatic-monitor-hb-rf-eth; then
