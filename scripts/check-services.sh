@@ -6,7 +6,7 @@ CONFIG="${SCRIPT_DIR}/../config/kuma.conf"
 
 # Prüfen, ob wir auf dem richtigen Server sind
 CURRENT_HOST=$(hostname)
-TARGET_HOST="Home-prod"
+TARGET_HOST="Home-Prod"
 
 if [[ "$CURRENT_HOST" != "$TARGET_HOST" ]]; then
     echo "INFO: Script läuft auf $CURRENT_HOST, wechsle zu $TARGET_HOST..."
