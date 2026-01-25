@@ -30,8 +30,8 @@ fi
 KUMA_URL=$(grep '^KUMA_URL=' "$CONFIG" | cut -d= -f2 | tr -d '"')
 echo "KUMA_URL: $KUMA_URL"
 
-key = 'TOKEN_ETH_ANTENNA'
-IFS='=' read -r $key token
+key='TOKEN_ETH_ANTENNA'
+token=$(grep "^${key}=" "$CONFIG" | cut -d= -f2 | tr -d '"')
 token="${token%\"}"
 token="${token#\"}"
 echo '$token'
