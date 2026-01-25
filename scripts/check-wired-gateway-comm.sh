@@ -1,49 +1,89 @@
 #!/bin/bash
 set -euo pipefail
 
-# Uptime Kuma Monitor: Wired Gateway Communication Check
+# Uptime Kuma Monitor: ETH-Antenne Communication Check
 # Pushes results directly to Kuma Push Monitor
 
 # Load Kuma config (relative to script directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/../config/kuma.conf"
-if [[ -f "$CONFIG_FILE" ]]; then
-    source "$CONFIG_FILE"
-else
-    echo "ERROR: Config file $CONFIG_FILE not found"
+CONFIG="${SCRIPT_DIR}/../config/kuma.conf"
+# Prüfen, ob wir auf dem richtigen Server sind
+CURRENT_HOST=$(hostname)
+TARGET_HOST="Home-Prod"
+
+if [[ "$CURRENT_HOST" != "$TARGET_HOST" ]]; then
+    echo "INFO: Script läuft auf $CURRENT_HOST, wechsle zu $TARGET_HOST..."
+    
+    # Script und Config auf PROD kopieren und dort ausführen
+    ssh dgl@PROD "bash -s" < "$0"
+    exit $?
+fi
+
+echo "INFO: Script läuft auf $TARGET_HOST"
+
+if [[ ! -f "$CONFIG" ]]; then
+    echo "ERROR: Config file $CONFIG not found"
     exit 1
 fi
 
-GATEWAY_IP="192.168.2.3"
-TIMEFRAME="10 minutes ago"
+# KUMA_URL extrahieren
+KUMA_URL=$(grep '^KUMA_URL=' "$CONFIG" | cut -d= -f2 | tr -d '"')
+echo "KUMA_URL: $KUMA_URL"
 
-# Prüfe ob HS485 Daemon läuft
-if ! systemctl is-active --quiet debmatic-hs485d; then
-    msg="ERROR: debmatic-hs485d service not running"
-    curl -fsS "${KUMA_URL}/api/push/${TOKEN_WIRED_GATEWAY}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
-    echo "$msg"
-    exit 1
-fi
+key='TOKEN_WIRED_GATEWAY'
+token=$(grep "^${key}=" "$CONFIG" | cut -d= -f2 | tr -d '"')
+token="${token%\"}"
+token="${token#\"}"
+echo "$token"
 
-# Prüfe Ping
-if ! ping -c 1 -W 2 "$GATEWAY_IP" &>/dev/null; then
-    msg="ERROR: Wired Gateway not reachable at $GATEWAY_IP"
-    curl -fsS "${KUMA_URL}/api/push/${TOKEN_WIRED_GATEWAY}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
-    echo "$msg"
-    exit 1
-fi
 
-# Prüfe Logs auf Bus-Probleme
+# Prüfung, ob tatsächlich bidirektionale Kommunikation stattfindet
+set -euo pipefail
+
+ANTENNA_IP="192.168.2.3"
+INTERFACE="enp0s31f6"
+DURATION=10
+TMPFILE="/tmp/ethantenne-tcpdump-output.txt"
+
+echo "Prüfe Kommunikation mit ETH-Antenne ($ANTENNA_IP) für $DURATION Sekunden..."
 bus_errors=$(journalctl -u debmatic-hs485d --since "$TIMEFRAME" --no-pager | grep -iE "bus.*error|timeout|unreachable" || true)
 
 if [[ -n "$bus_errors" ]]; then
     msg="WARNING: Bus communication issues detected in last $TIMEFRAME"
-    curl -fsS "${KUMA_URL}/api/push/${TOKEN_WIRED_GATEWAY}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
+    curl -fsS "${KUMA_URL}/api/push/${token}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
     echo "$msg"
     exit 1
 fi
 
-msg="OK: Wired Gateway communication healthy"
-curl -fsS "${KUMA_URL}/api/push/${TOKEN_WIRED_GATEWAY}?status=up&msg=$(echo "$msg" | jq -sRr @uri)" || true
+# tcpdump ausführen
+set +e
+sudo timeout "$DURATION" tcpdump -l -n -q -i "$INTERFACE" host "$ANTENNA_IP" and udp > "$TMPFILE" 2>&1
+rc=${PIPESTATUS[0]}
+set -e
+
+if [[ $rc -ne 0 && $rc -ne 124 ]]; then
+    echo "FEHLER: tcpdump fehlgeschlagen (Exit-Code $rc)"
+    rm -f "$TMPFILE"
+    exit 1
+fi
+
+# Pakete zählen
+TOTAL=$(grep "packets captured" "$TMPFILE" | head -1 | awk '{print $1}' || echo "0")
+
+# Pakete von Antenne zum Server zählen
+FROM_ANTENNA=$(grep -c "$ANTENNA_IP\.[0-9]* > " "$TMPFILE" 2>/dev/null || echo "0")
+
+# Pakete vom Server zur Antenne zählen
+TO_ANTENNA=$(grep -c " > $ANTENNA_IP\.[0-9]*:" "$TMPFILE" 2>/dev/null || echo "0")
+
+rm -f "$TMPFILE"
+# Auswertung
+if [[ "$TOTAL" -eq 0 ]] || [[ "$FROM_ANTENNA" -eq 0 ]] || [[ "$TO_ANTENNA" -eq 0 ]]; then
+    msg="CRITICAL: ETH-Antenne communication failure"
+else
+    msg="OK: ETH-Antenne communication healthy"
+fi
+curl -fsS "${KUMA_URL}/api/push/${token}?status=up&msg=$(echo "$msg" | jq -sRr @uri)" || true
 echo "$msg"
 exit 0
+

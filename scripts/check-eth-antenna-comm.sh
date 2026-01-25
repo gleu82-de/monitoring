@@ -34,7 +34,7 @@ key='TOKEN_ETH_ANTENNA'
 token=$(grep "^${key}=" "$CONFIG" | cut -d= -f2 | tr -d '"')
 token="${token%\"}"
 token="${token#\"}"
-echo '$token'
+echo "$token"
 
 ANTENNA_IP="192.168.2.2"
 TIMEFRAME="10 minutes ago"
@@ -81,13 +81,11 @@ FROM_ANTENNA=$(grep -c "$ANTENNA_IP\.[0-9]* > " "$TMPFILE" 2>/dev/null || echo "
 TO_ANTENNA=$(grep -c " > $ANTENNA_IP\.[0-9]*:" "$TMPFILE" 2>/dev/null || echo "0")
 
 rm -f "$TMPFILE"
-
 # Auswertung
-if [[ "$TOTAL" -eq 0 ] || ["$FROM_ANTENNA" -eq 0] || ["$TO_ANTENNA" -eq 0] ]]; then
+if [[ "$TOTAL" -eq 0 ]] || [[ "$FROM_ANTENNA" -eq 0 ]] || [[ "$TO_ANTENNA" -eq 0 ]]; then
     msg="CRITICAL: ETH-Antenne communication failure"
 else
     msg="OK: ETH-Antenne communication healthy"
-    exit 0
 fi
 curl -fsS "${KUMA_URL}/api/push/${token}?status=up&msg=$(echo "$msg" | jq -sRr @uri)" || true
 echo "$msg"
