@@ -44,12 +44,51 @@ conn_errors=$(journalctl -u debmatic-monitor-hb-rf-eth --since "$TIMEFRAME" --no
 
 if [[ -n "$conn_errors" ]]; then
     msg="WARNING: Connection issues detected in last $TIMEFRAME"
-    curl -fsS "${KUMA_URL}/api/push/${key}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
+    curl -fsS "${KUMA_URL}/api/push/${token}?status=down&msg=$(echo "$msg" | jq -sRr @uri)" || true
     echo "$msg"
     exit 1
 fi
 
-msg="OK: ETH-Antenne communication healthy"
-curl -fsS "${KUMA_URL}/api/push/${key}?status=up&msg=$(echo "$msg" | jq -sRr @uri)" || true
+# Prüfung, ob tatsächlich bidirektionale Kommunikation stattfindet
+set -euo pipefail
+
+ANTENNA_IP="192.168.2.2"
+INTERFACE="enp0s31f6"
+DURATION=10
+TMPFILE="/tmp/ethantenne-tcpdump-output.txt"
+
+echo "Prüfe Kommunikation mit ETH-Antenne ($ANTENNA_IP) für $DURATION Sekunden..."
+
+# tcpdump ausführen
+set +e
+sudo timeout "$DURATION" tcpdump -l -n -q -i "$INTERFACE" host "$ANTENNA_IP" and udp > "$TMPFILE" 2>&1
+rc=${PIPESTATUS[0]}
+set -e
+
+if [[ $rc -ne 0 && $rc -ne 124 ]]; then
+    echo "FEHLER: tcpdump fehlgeschlagen (Exit-Code $rc)"
+    rm -f "$TMPFILE"
+    exit 1
+fi
+
+# Pakete zählen
+TOTAL=$(grep "packets captured" "$TMPFILE" | head -1 | awk '{print $1}' || echo "0")
+
+# Pakete von Antenne zum Server zählen
+FROM_ANTENNA=$(grep -c "$ANTENNA_IP\.[0-9]* > " "$TMPFILE" 2>/dev/null || echo "0")
+
+# Pakete vom Server zur Antenne zählen
+TO_ANTENNA=$(grep -c " > $ANTENNA_IP\.[0-9]*:" "$TMPFILE" 2>/dev/null || echo "0")
+
+rm -f "$TMPFILE"
+
+# Auswertung
+if [[ "$TOTAL" -eq 0 ] || ["$FROM_ANTENNA" -eq 0] || ["$TO_ANTENNA" -eq 0] ]]; then
+    msg="CRITICAL: ETH-Antenne communication failure"
+else
+    msg="OK: ETH-Antenne communication healthy"
+    exit 0
+fi
+curl -fsS "${KUMA_URL}/api/push/${token}?status=up&msg=$(echo "$msg" | jq -sRr @uri)" || true
 echo "$msg"
 exit 0
