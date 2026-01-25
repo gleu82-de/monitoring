@@ -125,6 +125,7 @@ fi
 
 # An Kuma Push Monitor senden
 URL="${KUMA_URL}/api/push/${TOKEN}?status=${STATUS}&msg=$(echo "$MSG" | jq -sRr @uri)"
+echo "$URL"
 curl -fsS "$URL" || echo "WARNING: Failed to send to Kuma"
 
 # Exit-Code setzen
