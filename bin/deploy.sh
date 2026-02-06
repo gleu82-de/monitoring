@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-GITHUB_USER="didiator"
+GITHUB_USER="gleu82-de"
 GITHUB_REPO="monitoring"
 GITHUB_TOKEN=$(grep 'token = ' ~/.gitconfig | awk '{print $3}')
 
@@ -73,13 +73,19 @@ TITLE="$TAG - Monitoring Updates"
 BODY="Automated deployment $TAG"
 
 echo ""
+PAYLOAD=$(jq -n \
+  --arg tag "$TAG" \
+  --arg name "$TITLE" \
+  --arg body "$BODY" \
+  '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+
 RESPONSE=$(curl -s -X POST \
   -H "Accept: application/vnd.github.v3+json" \
   -H "Authorization: token $GITHUB_TOKEN" \
   "https://api.github.com/repos/$GITHUB_USER/$GITHUB_REPO/releases" \
-  -d "{\"tag_name\":\"$TAG\",\"name\":\"$TITLE\",\"body\":\"$BODY\",\"draft\":false,\"prerelease\":false}")
+  -d "$PAYLOAD")
 
-URL=$(echo "$RESPONSE" | grep -o '"html_url": *"[^"]*"' | head -1 | sed 's/"html_url": *"\(.*\)"/\1/')
+URL=$(echo "$RESPONSE" | jq -r '.html_url // empty')
 
 if [ -n "$URL" ]; then
     echo "✅ Release: $URL"
